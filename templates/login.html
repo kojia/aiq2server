@@ -1,0 +1,29 @@
+<!doctype html>
+<title>login</title>
+
+{% with messages = get_flashed_messages() %}
+  {% if messages %}
+    <ul class=flashes>
+    {% for message in messages %}
+      <li>{{ message }}</li>
+    {% endfor %}
+    </ul>
+  {% endif %}
+{% endwith %}
+
+<form action="/" method="POST">
+    <p>
+        ユーザー名
+        <input type="text" name="username">
+    </p>
+    <p>
+        パスワード
+        <input type="password" name="password">
+    </p>
+    <p>
+        <input type="submit" value="ログイン">
+    </p>
+</form>
+<p>
+    <a href="/signup">ユーザー登録</a>
+</p>

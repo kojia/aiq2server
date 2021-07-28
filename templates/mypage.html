@@ -1,0 +1,85 @@
+<!doctype html>
+<title>My Page</title>
+
+<style>
+    .flashes li {
+        background-color: #3d9970
+    }
+    .flashes li.error {
+        background-color: #ff4136;
+    }
+</style>
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+{% if messages %}
+<ul class=flashes>
+    {% for category, message in messages %}
+    <li class="{{ category }}">{{ message }}</li>
+    {% endfor %}
+</ul>
+{% endif %}
+{% endwith %}
+
+<h2>ブラックボックス関数の提出</h2>
+
+<p>
+    {% if blackbox_submission_datetime %}
+    提出済み（提出日{{blackbox_submission_datetime}}）
+    {% else %}
+    未提出
+    {% endif %}
+</p>
+
+<form action="/blackbox" method="POST" enctype="multipart/form-data">
+    <input type="file" name="file" required>
+    <input type="submit">
+</form>
+
+<h2>回答の提出</h2>
+<form action="/submission" method="POST" enctype="multipart/form-data">
+    <input type="file" name="file" required>
+    <input type="submit">
+</form>
+
+<h2>提出した回答とその結果</h2>
+<table>
+    <thead>
+    <tr>
+        <td>回数</td>
+        <td>提出日時</td>
+        <td>提出ファイル</td>
+        <td>結果ファイル</td>
+        <td>スコア</td>
+    </tr>
+    </thead>
+    <tbody>
+    {% for submission in submissions %}
+    <tr>
+        <td>{{loop.revindex}}</td>
+        <td>{{submission.date}}</td>
+        <td><a href="/submissions/{{loop.revindex}}">download</a></td>
+        <td><a href="/demands/{{loop.revindex}}">download</a></td>
+        <td>{{submission.score}}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+</table>
+
+<h2>Leaderboard</h2>
+<table>
+    <thead>
+    <tr>
+        <td>ユーザー</td>
+        <td>ブラックボックス関数</td>
+        <td>最新スコア</td>
+        <td>提出回数</td>
+    </tr>
+    </thead>
+    <tbody>
+    <tr>
+        <td>hogehoge</td>
+        <td>提出済</td>
+        <td>1 / 24 回提出</td>
+    </tr>
+    </tbody>
+</table>
