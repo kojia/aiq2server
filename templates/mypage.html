@@ -20,21 +20,6 @@
 {% endif %}
 {% endwith %}
 
-<h2>ブラックボックス関数の提出</h2>
-
-<p>
-    {% if blackbox_submission_datetime %}
-    提出済み（提出日{{blackbox_submission_datetime}}）
-    {% else %}
-    未提出
-    {% endif %}
-</p>
-
-<form action="/blackbox" method="POST" enctype="multipart/form-data">
-    <input type="file" name="file" required>
-    <input type="submit">
-</form>
-
 <h2>回答の提出</h2>
 <form action="/submission" method="POST" enctype="multipart/form-data">
     <input type="file" name="file" required>

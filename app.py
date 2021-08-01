@@ -1,11 +1,11 @@
-import csv
-
 from flask import Flask, render_template, request, redirect, url_for, flash, make_response
 from flask_login import LoginManager, UserMixin, login_user, login_required, current_user
 from flask_sqlalchemy import SQLAlchemy
 import datetime
 import numpy as np
 from io import StringIO
+import subprocess
+from pathlib import Path
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'zfb33782323cc152019b747a051f73c6'
@@ -46,12 +46,6 @@ class User(db.Model, UserMixin):
 
     def get_id(self):
         return self.username
-
-
-class BlackBoxFunc(db.Model):
-    username = db.Column(db.Text, nullable=False, primary_key=True)
-    func = db.Column(db.Text, nullable=False)
-    date = db.Column(db.DateTime, nullable=False)
 
 
 class Submission(db.Model):
@@ -104,76 +98,44 @@ def sign_up():
 @app.route('/mypage')
 @login_required
 def my_page():
-    blackbox = BlackBoxFunc.query.get(current_user.username)
-    blackbox_submission_datetime = blackbox.date if blackbox else None
-    submissions = Submission.query\
-        .filter_by(username=current_user.username)\
-        .order_by(Submission.date.desc())\
+    submissions = Submission.query \
+        .filter_by(username=current_user.username) \
+        .order_by(Submission.date.desc()) \
         .all()
     return render_template('mypage.html',
-                           blackbox_submission_datetime=blackbox_submission_datetime,
                            submissions=submissions
                            )
-
-
-@app.route('/blackbox', methods=['POST'])
-@login_required
-def black_box():
-    try:
-        fs = request.files['file']
-        func_txt = fs.read().decode()
-        exec(func_txt)
-        exec('f = func("0",1,2,3,4,5,6,7,8,9,10)')
-        exec('print(f("0",2))')
-
-        black_box_entity = BlackBoxFunc()
-        black_box_entity.username = current_user.username
-        black_box_entity.func = func_txt
-        black_box_entity.date = datetime.datetime.now()
-
-        db.session.merge(black_box_entity)
-        db.session.commit()
-        flash('ブラックボックス関数ファイルの投稿に成功しました', 'info')
-    except Exception as e:
-        flash(f'ブラックボックス関数ファイルの投稿に失敗しました\n{e}', 'error')
-    return redirect(url_for('my_page'))
 
 
 @app.route('/submission', methods=['POST'])
 @login_required
 def submission():
+    # 投稿されたファイルをCSVファイルとして一時保存
     try:
         fs = request.files['file']
-        submission_txt = fs.read().decode()
+        fs.save('./submission_tmp.csv')
     except Exception as e:
         flash(f'ファイル読み込みに失敗しました\n${e}', 'error')
         return redirect(url_for('my_page'))
 
-        # 投稿されたテキストファイルが既定の行/列数のCSVになっているかを確認した後、
-        # numpy行列に変換
-    try:
-        submission_array = submission_to_np(submission_txt)
-    except Exception as e:
-        flash(f'投稿されたファイル形式が正しくありません\n{e}', 'error')
-        return redirect(url_for('my_page'))
+    # 投稿されたデータのCSVを引数にして販売数を返す
+    subprocess.Popen('"./venv/Scripts/activate.bat" && python "./out_demand/demand.py" '
+                     '--file-path submission_tmp.csv --options-path out_demand/data/opt.json'
+                     ' --out-path demand_tmp.csv').wait()
 
-        # 投稿データnumpy行列をブラックボックス関数に渡して売上個数のnumpy行列を取得
-    try:
-        demands = calculate_demands(submission_array)
-    except Exception as e:
-        flash(f'売上個数の計算に失敗しました\n{e}', 'error')
-        return redirect(url_for('my_page'))
+    # 予測csv, 販売数csvからnumpy行列を抽出
+    submission_array = np.loadtxt('submission_tmp.csv', delimiter=',', usecols=1)
+    demand_array = np.loadtxt('demand_tmp.csv', delimiter=',', usecols=1)
 
     # 売上個数のnumpy行列をスコア（利益）算出関数に渡す
-    profit = calculate_profit([x[1] for x in submission_array], demands)
+    profit = calculate_profit(submission_array, demand_array)
 
     # 結果をDBに格納
     try:
         submission_entity = Submission()
         submission_entity.username = current_user.username
-        submission_entity.submission = submission_txt
-        demands_csv_array = np.stack([[x[0] for x in submission_array], demands]).T
-        submission_entity.demands = to_csv_string(demands_csv_array)
+        submission_entity.submission = Path('submission_tmp.csv').read_text()
+        submission_entity.demands = Path('demand_tmp.csv').read_text()
         submission_entity.score = profit
         submission_entity.date = datetime.datetime.now()
 
@@ -182,6 +144,9 @@ def submission():
         flash('提出された価格から売上個数を計算しました', 'info')
     except Exception as e:
         flash(f'売上個数の登録に失敗しました\n{e}', 'danger')
+
+    # 一時ファイル削除
+
     return redirect(url_for('my_page'))
 
 
@@ -189,10 +154,10 @@ def submission():
 @login_required
 def download_submission(index):
     index = int(index)
-    submission_data = Submission.query\
-        .filter_by(username=current_user.username)\
-        .order_by(Submission.date.desc())\
-        .all()[index-1].submission
+    submission_data = Submission.query \
+        .filter_by(username=current_user.username) \
+        .order_by(Submission.date.desc()) \
+        .all()[index - 1].submission
 
     response = make_response()
     response.data = submission_data
@@ -205,15 +170,15 @@ def download_submission(index):
 @app.route('/demands/<string:index>')
 @login_required
 def download_demand(index):
-    demand_data = Submission.query\
-        .filter_by(username=current_user.username)\
-        .order_by(Submission.date.desc())\
-        .all()[int(index)-1].demands
+    demand_data = Submission.query \
+        .filter_by(username=current_user.username) \
+        .order_by(Submission.date.desc()) \
+        .all()[int(index) - 1].demands
 
     response = make_response()
     response.data = demand_data
     filename = f'{current_user.username}_demand_{index}.csv'
-    response.headers['Content-Disposition'] = 'attachment; filename='+ filename
+    response.headers['Content-Disposition'] = 'attachment; filename=' + filename
     response.mimetype = 'text/csv'
     return response
 
