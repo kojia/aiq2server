@@ -102,8 +102,14 @@ def my_page():
         .filter_by(username=current_user.username) \
         .order_by(Submission.date.desc()) \
         .all()
+    sub_all = Submission.query.order_by(Submission.id).all()
+    leaderboard = {}
+    for sub in sub_all:
+        leaderboard[sub.username] = sub.score
+    print(leaderboard)
     return render_template('mypage.html',
-                           submissions=submissions
+                           submissions=submissions,
+                           leaderboard=leaderboard
                            )
 
 
