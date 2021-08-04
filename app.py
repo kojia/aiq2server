@@ -162,7 +162,7 @@ def download_submission(index):
     index = int(index)
     submission_data = Submission.query \
         .filter_by(username=current_user.username) \
-        .order_by(Submission.date.desc()) \
+        .order_by(Submission.id) \
         .all()[index - 1].submission
 
     response = make_response()
@@ -178,7 +178,7 @@ def download_submission(index):
 def download_demand(index):
     demand_data = Submission.query \
         .filter_by(username=current_user.username) \
-        .order_by(Submission.date.desc()) \
+        .order_by(Submission.id) \
         .all()[int(index) - 1].demands
 
     response = make_response()
@@ -204,20 +204,6 @@ def submission_to_np(submission_txt: str):
         return array
     else:
         raise Exception(f'提出ファイルのshapeが正しくありません: {array.shape}')
-
-
-def calculate_demands(submission_array: np.ndarray) -> np.ndarray:
-    blackboxes = BlackBoxFunc.query.all()
-    demands_all = list()
-    for blackbox in blackboxes:
-        exec(blackbox.func, globals())
-        exec('explain_funcs = [func(*x) for x in ITEMS]')
-        exec('demands = [f(*x) for f,x in zip(explain_funcs, submission_array)]')
-        exec('demands_all.append(demands)')
-    demands_all_array = np.array(demands_all)
-    demands_all_array = demands_all_array.reshape(783, -1)
-    demands_ave = np.average(demands_all_array, axis=1).astype('int')
-    return demands_ave
 
 
 def to_csv_string(array: np.ndarray):
